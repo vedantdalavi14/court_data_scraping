@@ -1,14 +1,12 @@
-## FINAL SCRIPT - COMMAND-LINE VERSION (NO FLASK) ##
+## FINAL WORKING SCRIPT - COMMAND-LINE VERSION ##
 
 import time
 import os
 import sqlite3
-import random
 from pathlib import Path
 from bs4 import BeautifulSoup
-import requests
 from urllib.parse import urljoin
-from playwright.sync_api import sync_playwright, Page, expect
+from playwright.sync_api import sync_playwright, Page
 import subprocess
 import platform
 
@@ -91,14 +89,11 @@ def open_image(path):
     else: # Linux
         subprocess.run(["xdg-open", path])
 
-
 # --- Main Application Runner ---
-# --------------------------------------------------------------------
-# Replace your entire old main() function with this FINAL version
-# --------------------------------------------------------------------
-# --------------------------------------------------------------------
-# The main() function, edited to use the onclick attribute locator
-# --------------------------------------------------------------------
+# ----------------------------------------------------------------------------------
+# FINAL SCRIPT - With a retry loop for CAPTCHA fetching to handle network issues
+# Replace your entire main() function with this version.
+# ----------------------------------------------------------------------------------
 def main():
     URL = "https://hcservices.ecourts.gov.in/ecourtindiaHC/cases/case_no.php?court_code=1&dist_cd=1&stateNm=Karnataka&state_cd=3"
     
@@ -124,69 +119,86 @@ def main():
                 'case_type': case_type, 'case_number': case_number, 'case_year': case_year
             }
 
-            # Step 2: Fill details and refresh CAPTCHA
-            print("\nFilling form details...")
+            # Step 2: Fill details
+            print("\nFilling form details with human-like delays...")
             page.select_option('select#case_type', value=case_type)
-            page.fill('input#search_case_no', case_number)
-            page.fill('input#rgyear', case_year)
-            print("Forcing CAPTCHA refresh to get real image...")
-            page.click("a[title='Refresh Image']")
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(500)
+            page.locator('input#search_case_no').type(case_number, delay=100)
+            page.wait_for_timeout(500)
+            page.locator('input#rgyear').type(case_year, delay=100)
+            
+            # --- START OF CAPTCHA RETRY LOOP ---
+            got_captcha = False
+            max_retries = 3
+            for attempt in range(max_retries):
+                print(f"\nAttempt {attempt + 1} of {max_retries} to get a stable CAPTCHA image...")
+                try:
+                    # Always click refresh to ensure we're getting a fresh image
+                    page.click("a[title='Refresh Image']")
+                    page.wait_for_timeout(2000) # Give it 2 seconds to load
 
-            # Step 3: Get CAPTCHA and ask for solution
-            captcha_element = page.locator("//img[@id='captcha_image' or @id='cap']")
-            captcha_element.screenshot(path=CAPTCHA_IMAGE_FILENAME)
+                    captcha_element = page.locator("//img[@id='captcha_image' or @id='cap']")
+                    captcha_element.wait_for(state="visible", timeout=10000)
+                    
+                    # Try to take the screenshot
+                    captcha_element.screenshot(path=CAPTCHA_IMAGE_FILENAME)
+                    
+                    print("Stable CAPTCHA image received and saved.")
+                    got_captcha = True
+                    break # If successful, exit the loop
+                except Exception as e:
+                    print(f"Warning: Failed to get CAPTCHA on attempt {attempt + 1}. The website might be slow.")
+                    if attempt >= max_retries - 1:
+                        print("Could not retrieve a stable CAPTCHA after multiple attempts.")
+                        raise e # Give up and show the final error
+            # --- END OF CAPTCHA RETRY LOOP ---
+            
+            # Step 3: Get CAPTCHA solution from user
             print(f"CAPTCHA image saved to '{CAPTCHA_IMAGE_FILENAME}' and is opening now...")
             open_image(CAPTCHA_IMAGE_FILENAME)
-            
             solution = input("\nEnter the CAPTCHA solution you see in the image: ")
 
             # Step 4: Submit and get results
-            page.fill('input#captcha', solution)
+            page.locator('input#captcha').type(solution, delay=100)
             print("Submitting form...")
             page.click("input[name='submit1']")
-            print("Waiting for server response (results to appear)...")
-
-            # --- START OF THE EDIT ---
-            # Define the new CSS selector for the success link based on its 'onclick' attribute.
-            # The '*' means the attribute "contains" the text 'viewHistory'.
-            view_link_selector = "a[onclick*='viewHistory']"
-            error_input_selector = "input#txtmsg"
-
-            # Use the new selector in our wait condition.
-            page.wait_for_selector(
-                f"{view_link_selector}, {error_input_selector}",
-                state='visible',
-                timeout=20000
-            )
-
-            # Define the locators again for the final check.
-            view_link = page.locator(view_link_selector)
-            error_input = page.locator(error_input_selector)
             
-            # The rest of the logic is the same.
-            if view_link.is_visible():
-                print("\nSUCCESS! Case found. Scraping data...")
-                view_link.click()
-                page.wait_for_load_state('networkidle')
+            print("Waiting for AJAX results to appear on the page...")
+            try:
+                view_link = page.locator("a[onclick*='viewHistory']")
+                view_link.wait_for(state="visible", timeout=20000)
                 
+                print("\nSUCCESS! Case found. Clicking 'View' to get details...")
+                view_link.click(force=True)
+                
+                page.wait_for_load_state('networkidle', timeout=20000)
+                
+                print("Details page loaded. Parsing data...")
                 html_content = page.content()
                 scraped_data = parse_case_details(html_content)
                 scraped_data.update(case_details)
                 scraped_data['raw_html'] = html_content
                 save_case_data(scraped_data)
-                print("Scraped data has been saved to 'cases.db'.")
-            elif error_input.is_visible():
-                error_text = error_input.get_attribute('value')
-                print(f"\nFAILURE. Reason from page: '{error_text}'")
+                
+                print("\n--- SCRAPED DATA ---")
+                for key, value in scraped_data.items():
+                    if key != 'raw_html':
+                        print(f"{key.replace('_', ' ').title()}: {value}")
+                print("\nScraped data has been saved to 'cases.db'.")
+
+            except Exception as e:
+                print("Did not find 'View' link. Checking for an error message...")
+                error_input = page.locator("input#txtmsg")
+                if error_input.is_visible(timeout=5000):
+                    error_text = error_input.get_attribute('value')
+                    print(f"\nFAILURE. Reason from page: '{error_text}'")
+                else:
+                    print("\nFAILURE. An unexpected error occurred and no results or error message could be found.")
+                    print(f"Debug details: {e}")
                 print("Please run the script again.")
-            else:
-                print("\nFAILURE. Unknown page state after waiting.")
-                print("Please run the script again.")
-            # --- END OF THE EDIT ---
 
         except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}")
+            print(f"\nAn unexpected error occurred in the main process: {e}")
         
         finally:
             print("\nScript finished. Browser will close in 10 seconds.")
