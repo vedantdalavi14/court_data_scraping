@@ -11,7 +11,26 @@
         <li><b>Filing Date:</b> {{ data.get('filing_date') }}</li>
         <li><b>Case Status:</b> {{ data.get('case_status') }}</li>
         <li><b>Next Hearing Date:</b> {{ data.get('next_hearing_date') }}</li>
-        <li><b>Most Recent Order:</b> <a href="{{ data.get('most_recent_order_pdf_url') }}" class="pdf-link" target="_blank">Download PDF</a></li>
-    </ul>
+        
+        <li>
+            <b>Orders / Judgments:</b>
+            {% if data.get('orders') %}
+                <ul style="margin-top: 0.5em;">
+                {% for order in data.get('orders') %}
+                    <li style="border: none; padding: 0.3em 0;">
+                        {{ order.date }}: 
+                        {% if order.local_url %}
+                            <a href="{{ order.local_url }}" class="pdf-link">Download PDF</a>
+                        {% else %}
+                            <span>(Download Failed)</span>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <span>No orders found.</span>
+            {% endif %}
+        </li>
+        </ul>
     <a href="/" class="button-link"><button style="background-color:#007BFF; margin-top: 1.5em;">Scrape Another Case</button></a>
 {% endblock %}

@@ -1,4 +1,4 @@
-## FINAL SCRIPT - With the Most Robust Waiting and Error Handling Logic ##
+## FINAL ASSIGNMENT SCRIPT - Flask UI + Playwright Backend (Complete) ##
 
 import time
 import os
@@ -13,6 +13,7 @@ from playwright.sync_api import sync_playwright, Page, expect
 import queue
 import platform
 import subprocess
+import re
 
 # --- Database and Parsing Functions ---
 def init_db():
@@ -30,6 +31,11 @@ def init_db():
     conn.close()
 
 def save_case_data(scraped_data):
+    orders_list = scraped_data.get('orders', [])
+    first_order_url = 'No Orders Found' # Set a default message
+    if orders_list: # Check if the list contains at least one order
+        first_order_url = orders_list[0].get('local_url', 'Download Failed')
+
     conn = sqlite3.connect('cases.db')
     cursor = conn.cursor()
     cursor.execute('''
@@ -39,7 +45,8 @@ def save_case_data(scraped_data):
         scraped_data.get('case_type'), scraped_data.get('case_number'), scraped_data.get('case_year'),
         scraped_data.get('petitioner_name'), scraped_data.get('respondent_name'),
         scraped_data.get('filing_date'), scraped_data.get('next_hearing_date'),
-        scraped_data.get('case_status'), scraped_data.get('most_recent_order_pdf_url'),
+        scraped_data.get('case_status'),
+        first_order_url, # Use our new, safe variable
         scraped_data.get('raw_html')
     ))
     conn.commit()
@@ -50,7 +57,7 @@ def parse_case_details(html_content):
     base_url = "https://hcservices.ecourts.gov.in/ecourtindiaHC/cases/"
     parsed_data = {
         'petitioner_name': 'Not Found', 'respondent_name': 'Not Found', 'filing_date': 'Not Found',
-        'next_hearing_date': 'Not Found', 'case_status': 'Not Found', 'most_recent_order_pdf_url': 'Not Found'
+        'next_hearing_date': 'Not Found', 'case_status': 'Not Found', 'orders': []
     }
     try:
         petitioner_full_text = soup.find('span', class_='Petitioner_Advocate_table').get_text(strip=True, separator=' ')
@@ -74,10 +81,17 @@ def parse_case_details(html_content):
     try:
         orders_table = soup.find('table', class_='order_table')
         if orders_table:
-            pdf_link_tag = orders_table.find('a')
-            if pdf_link_tag and pdf_link_tag.has_attr('href'):
-                parsed_data['most_recent_order_pdf_url'] = urljoin(base_url, pdf_link_tag['href'])
-    except: pass
+            order_rows = orders_table.find('tbody').find_all('tr')
+            for row in order_rows:
+                columns = row.find_all('td')
+                if len(columns) >= 5:
+                    order_date = columns[3].text.strip()
+                    pdf_link_tag = columns[4].find('a')
+                    if pdf_link_tag and pdf_link_tag.has_attr('href'):
+                        pdf_url = urljoin(base_url, pdf_link_tag['href'])
+                        parsed_data['orders'].append({'date': order_date, 'url': pdf_url})
+    except Exception as e:
+        print(f"Warning: Could not parse the orders table. Error: {e}")
     return parsed_data
 
 # --- Global Variables ---
@@ -96,11 +110,7 @@ def index():
 
 @app.route('/get_captcha', methods=['POST'])
 def get_captcha():
-    case_details = {
-        'case_type': request.form['case_type'],
-        'case_number': request.form['case_number'],
-        'case_year': request.form['case_year']
-    }
+    case_details = {'case_type': request.form['case_type'], 'case_number': request.form['case_number'], 'case_year': request.form['case_year']}
     job_queue.put({'action': 'fill_and_refresh', 'data': case_details})
     result = result_queue.get()
     if result['status'] == 'success':
@@ -122,10 +132,15 @@ def submit():
         return render_template('success.html', data=result['data'])
     else:
         return render_template('error.html', error=result['error'])
+        
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    download_folder = os.path.join(os.getcwd(), 'downloads')
+    return send_file(os.path.join(download_folder, filename), as_attachment=True)
 
 # --- Main Playwright Task Runner ---
 def run_playwright_tasks():
-    global page
+    global page, context
     current_case_details = {}
     URL = "https://hcservices.ecourts.gov.in/ecourtindiaHC/cases/case_no.php?court_code=1&dist_cd=1&stateNm=Karnataka&state_cd=3"
 
@@ -136,7 +151,7 @@ def run_playwright_tasks():
             data = job.get('data')
             
             if action == 'fill_and_refresh':
-                print("\nPlaywright: Starting a new search. Resetting to the main search page...")
+                print("\nPlaywright: Starting a new search. Resetting...")
                 page.goto(URL, wait_until="domcontentloaded")
                 print("Main search page reloaded.")
                 
@@ -161,33 +176,66 @@ def run_playwright_tasks():
                 page.locator('input#captcha').type(data, delay=100)
                 page.click("input[name='submit1']")
                 
-                print("Waiting for response...")
-
-                # --- START OF THE SIMPLIFIED ERROR HANDLING FIX ---
                 try:
-                    # We only try the "happy path" - wait for the 'View' link to appear.
+                    print("Waiting for response...")
                     view_link = page.locator("a[onclick*='viewHistory']")
-                    view_link.wait_for(state="visible", timeout=10000)
+                    view_link.wait_for(state="visible", timeout=20000)
                     
-                    # If the line above does not time out, we have a success.
                     print("Success: 'View' link found.")
                     view_link.click(force=True)
-                    page.wait_for_load_state('networkidle', timeout=10000)
+                    page.wait_for_load_state('networkidle', timeout=20000)
                     
                     html_content = page.content()
                     scraped_data = parse_case_details(html_content)
                     scraped_data.update(current_case_details)
+
+                    # --- START OF THE ROBUST PDF DOWNLOAD LOGIC ---
+                    print("Downloading order PDFs...")
+                    os.makedirs("downloads", exist_ok=True)
+                    if scraped_data.get('orders'):
+                        for i, order in enumerate(scraped_data['orders']):
+                            pdf_url = order['url']
+                            try:
+                                # Start waiting for a download event BEFORE triggering it.
+                                with page.expect_download(timeout=20000) as download_info:
+                                    # Trigger the download by evaluating JS on the current, authenticated page.
+                                    # This is the most reliable way to handle session-locked downloads.
+                                    page.evaluate(f"""
+                                        const link = document.createElement('a');
+                                        link.href = "{pdf_url}";
+                                        link.setAttribute('download', '');
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    """)
+                                
+                                download = download_info.value
+                                
+                                # Create our own safe filename
+                                case_id = f"{current_case_details['case_type']}-{current_case_details['case_number']}-{current_case_details['case_year']}"
+                                safe_date = order['date'].replace('/', '-')
+                                pdf_filename = f"{case_id}_{i+1}_{safe_date}.pdf"
+                                save_path = os.path.join("downloads", pdf_filename)
+                                
+                                # Save the downloaded file to our specified path
+                                download.save_as(save_path)
+                                
+                                print(f"Saved PDF to: {save_path}")
+                                order['local_url'] = f"/download/{pdf_filename}"
+
+                            except Exception as pdf_e:
+                                print(f"Failed to download PDF from {pdf_url}. Error: {pdf_e}")
+                                order['local_url'] = None
+                    # --- END OF THE ROBUST PDF DOWNLOAD LOGIC ---
+                    
                     scraped_data['raw_html'] = html_content
                     save_case_data(scraped_data)
                     result_queue.put({'status': 'success', 'data': scraped_data})
 
                 except Exception as e:
-                    # If waiting for the 'View' link timed out, it's a failure.
-                    # We will now send a single, clear error message back to the user.
                     print(f"Did not find 'View' link. Assuming submission failed. (Debug: {e})")
-                    error_text = "Submission Failed. This is likely due to an incorrect CAPTCHA or invalid case details. Please try again."
+                    error_text = "Submission Failed. This is likely due to an incorrect CAPTCHA or invalid case details."
                     result_queue.put({'status': 'failure', 'error': error_text})
-                    # The page usually reloads on a failed submission, so a manual reload is often not needed here.
 
         except Exception as e:
             print(f"Error in Playwright task runner: {e}")
@@ -195,17 +243,18 @@ def run_playwright_tasks():
 
 # --- Main Application Runner ---
 def main_app():
-    global page
+    global page, context
     URL = "https://hcservices.ecourts.gov.in/ecourtindiaHC/cases/case_no.php?court_code=1&dist_cd=1&stateNm=Karnataka&state_cd=3"
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        # We use headless=False to avoid bot detection and ensure rendering
+        browser = p.chromium.launch(headless=True) 
         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
         page = context.new_page()
         page.goto(URL, wait_until="domcontentloaded")
         
         print("Starting Flask server in a separate thread...")
-        flask_thread = threading.Thread(target=lambda: app.run(port=5000, debug=False, use_reloader=False))
+        flask_thread = threading.Thread(target=lambda: app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False))
         flask_thread.daemon = True
         flask_thread.start()
 
