@@ -2,10 +2,9 @@
 
 This project contains a robust, containerized Python application to programmatically scrape case data from the official Karnataka High Court e-Courts website. It leverages the Playwright automation framework to navigate a highly dynamic, security-hardened website, uses Flask to provide a simple web-based UI, and employs BeautifulSoup for precise HTML parsing. All scraped data is archived in a local SQLite database.
 
-## Live Demo
-
-Watch a live walkthrough of the project on YouTube:
-[YouTube Video Link](https://your-youtube-link-here)
+## 🎬 Live Demo
+**[https://youtu.be/hhNLt8P3T04]**
+(A brief video demonstrating the web scraper in action, showing a user entering case details into the Flask web UI, the script successfully scraping the live e-Courts website, and the final parsed data appearing in the SQLite database log.)
 
 ## Features
 
