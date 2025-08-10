@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Step 2: Solve CAPTCHA{% endblock %}
+
+{% block content %}
+    <h1>e-Courts Case Scraper</h1>
+    <p class="subtitle">Step 2: Solve the Fresh CAPTCHA</p>
+    <img src="/captcha.png?t={{ time.time() }}" alt="CAPTCHA Image">
+    <form action="/submit" method="post">
+        <div>
+            <label for="solution">CAPTCHA Solution:</label>
+            <input type="text" id="solution" name="solution" required autocomplete="off" autofocus>
+        </div>
+        <button type="submit">Submit Case</button>
+    </form>
+{% endblock %}

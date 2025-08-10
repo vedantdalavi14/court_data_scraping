@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Step 1: Enter Case Details{% endblock %}
+
+{% block content %}
+    <h1>e-Courts Case Scraper</h1>
+    <p class="subtitle">Step 1: Enter Case Details</p>
+    <form action="/get_captcha" method="post">
+        <div>
+            <label for="case_type">Case Type:</label>
+            <select id="case_type" name="case_type">
+                <option value="0">Select Case Type</option>
+                <option value="156">AC - Arbitration Case(156)</option>
+                <option value="170">AP.EFA - Arbitration Petition(Enforcement of Foreign Arbitral Award)(170)</option>
+                <option value="168">AP.IM - Arbitration Petition-Interim Measure(168)</option>
+                <option value="101">CA - Company Application(101)</option>
+                <option value="143">CCC - Civil Contempt Petition(143)</option>
+                <option value="169">CC(CIA) - Criminal Complaint (Commissions of Inquiry Act)(169)</option>
+                <option value="104">CEA - Central Excise Appeal(104)</option>
+                <option value="105">CMP - CIVIL MISC. PETITION(105)</option>
+                <option value="155">COA - U/s 10(f) of the Companies Act(155)</option>
+                <option value="171">COMAP - Commercial Appeals(171)</option>
+                <option value="176">COMAP.CR - Commercial Appeals Cross Objection(176)</option>
+                <option value="173">COM.APLN - Commercial Application(173)</option>
+                <option value="178">COM.OS(178)</option>
+                <option value="103">COMPA - Company Appeal(103)</option>
+                <option value="177">COM.S - Commercial Suit(177)</option>
+                <option value="102">COP - Company Petition(102)</option>
+                <option value="106">CP - Civil Petition(106)</option>
+                <option value="159">CP.KLRA - CP On Karnataka Land Reforms Act(159)</option>
+                <option value="160">CRA - CROSS APPEALS(160)</option>
+                <option value="107">CRC - Civil Referred Case(107)</option>
+                <option value="110">CRL.A - Criminal Appeal(110)</option>
+                <option value="111">CRL.CCC - Criminal Contempt Petition(111)</option>
+                <option value="112">CRL.P - Criminal Petition(112)</option>
+                <option value="113">CRL.RC - Criminal Referred Case(113)</option>
+                <option value="114">CRL.RP - Criminal Revision Petition(114)</option>
+                <option value="161">CROB - Cross Objection(161)</option>
+                <option value="108">CRP - Civil Revision Petition(108)</option>
+                <option value="115">CSTA - Customs Appeal(115)</option>
+                <option value="116">EP - Election Petition(116)</option>
+                <option value="117">EX.FA - EXECUTION FIRST APPEAL(117)</option>
+                <option value="118">EX.SA - EXECUTION SECOND APPEAL(118)</option>
+                <option value="148">GTA - Gift Tax Appeal(148)</option>
+                <option value="119">HRRP - House Rent Rev. Petition(119)</option>
+                <option value="120">ITA - Income Tax Appeal(120)</option>
+                <option value="162">ITA.CROB - I.T Appeal CROSS Objection(162)</option>
+                <option value="121">ITRC - Income-tax referred case(121)</option>
+                <option value="122">LRRP - Land Reforms Revision Petition(122)</option>
+                <option value="123">LTRP - LUXURY TAX REVISION PETN.(123)</option>
+                <option value="124">MFA - Miscellaneous First Appeal(124)</option>
+                <option value="125">MFA.CROB - MFA Cross Objection(125)</option>
+                <option value="164">MISC.CRL - Miscellaneous Case for Crml(164)</option>
+                <option value="165">MISC.CVL - Miscellaneous Case for Civil(165)</option>
+                <option value="166">MISC.P - Misc Petition(166)</option>
+                <option value="167">MISC.W - Miscellaneous Case for Writ(167)</option>
+                <option value="126">MSA - Miscellaneous Second Appeal(126)</option>
+                <option value="127">MSA.CROB - MSA Cross Objection(127)</option>
+                <option value="128">OLR - Official Liquidator Report(128)</option>
+                <option value="154">OS - Original Suit(154)</option>
+                <option value="129">OSA - Original Side Appeal(129)</option>
+                <option value="130">OSA.CROB - OSA Cross Objection(130)</option>
+                <option value="131">PROB.CP - Probate Civil Petition(131)</option>
+                <option value="153">RA - Regular Appeal(153)</option>
+                <option value="172">RERA.A - RERA APPEALS(172)</option>
+                <option value="179">RERA.CRB - RERA Appeals cross-objection(179)</option>
+                <option value="132">RFA - Regular First Appeal(132)</option>
+                <option value="133">RFA.CROB - RFA Cross Objection(133)</option>
+                <option value="134">RP - Review Petition(134)</option>
+                <option value="135">RPFC - Rev.Pet Family Court(135)</option>
+                <option value="136">RSA - Regular Second Appeal(136)</option>
+                <option value="137">RSA.CROB - RSA Cross Objection(137)</option>
+                <option value="152">SCLAP - SUPREME COURT LEAVE APPLICATION(152)</option>
+                <option value="138">STA - Sales Tax Appeal(138)</option>
+                <option value="139">STRP - Sales Tax Revision Petition(139)</option>
+                <option value="151">TAET - Tax Appeal on Entry Tax(151)</option>
+                <option value="141">TOS - Testamentory Original Suit(141)</option>
+                <option value="142">TRC - Tax referred cases(142)</option>
+                <option value="145">WA - Writ Appeal(145)</option>
+                <option value="147">WA.CROB - WA Cross Objection(147)</option>
+                <option value="144">WP - Writ Petition(144)</option>
+                <option value="150">WPCP - Civil Pet in Writ Side(150)</option>
+                <option value="146">WPHC - Habeas Corpus(146)</option>
+                <option value="149">WTA - Wealth Tax Appeal(149)</option>
+            </select>
+        </div>
+        <div>
+            <label for="case_number">Case Number:</label>
+            <input type="text" id="case_number" name="case_number" required>
+        </div>
+        <div>
+            <label for="case_year">Case Year:</label>
+            <input type="text" id="case_year" name="case_year" required>
+        </div>
+        <button type="submit">Get CAPTCHA</button>
+    </form>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Success!{% endblock %}
+
+{% block content %}
+    <h1>Scraping Successful!</h1>
+    <p class="subtitle">The following details were found and saved to the database.</p>
+    <h2>Parsed Details</h2>
+    <ul class="results-list">
+        <li><b>Case Type/No/Year:</b> {{ data.get('case_type') }}/{{ data.get("case_number") }}/{{ data.get("case_year") }}</li>
+        <li><b>Parties:</b> {{ data.get('petitioner_name') }} vs. {{ data.get('respondent_name') }}</li>
+        <li><b>Filing Date:</b> {{ data.get('filing_date') }}</li>
+        <li><b>Case Status:</b> {{ data.get('case_status') }}</li>
+        <li><b>Next Hearing Date:</b> {{ data.get('next_hearing_date') }}</li>
+        <li><b>Most Recent Order:</b> <a href="{{ data.get('most_recent_order_pdf_url') }}" class="pdf-link" target="_blank">Download PDF</a></li>
+    </ul>
+    <a href="/" class="button-link"><button style="background-color:#007BFF; margin-top: 1.5em;">Scrape Another Case</button></a>
+{% endblock %}
